@@ -1,0 +1,78 @@
+Azure-tokyo-olympics commands
+
+
+from pyspark.sql.functions import col
+from pyspark.sql.types import IntegerType, DoubleType, BooleanType, DateType
+
+configs = {"fs.azure.account.auth.type": "OAuth",
+"fs.azure.account.oauth.provider.type": "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider",
+"fs.azure.account.oauth2.client.id": "ced68905-6e0f-48ee-ac09-effb87db6f3f",
+"fs.azure.account.oauth2.client.secret": 'fmT8Q~1Kw0kD3tluyuIuAnko434swZHed_GF7cdI',
+"fs.azure.account.oauth2.client.endpoint": "https://login.microsoftonline.com/b2c5253e-4a88-47c4-86cd-9e3ea208deed/oauth2/token"}
+
+
+dbutils.fs.mount(source = "abfss://tokyo-olympic-data@tokyoolympicsvyshu.dfs.core.windows.net",mount_point = "/mnt/tokyoolymic",extra_configs = configs)
+
+%fs
+ls "/mnt/tokyoolymic"
+
+spark
+
+	SparkSession - hive
+
+	SparkContext
+
+	Spark UI
+
+	Version
+	v3.3.2
+	Master
+	local[*, 4]
+	AppName
+	Databricks Shell
+
+
+athlete = spark.read.format("csv").option("header","True").option("inferSchema","True").load("/mnt/tokyoolymic/raw_data/athlete.csv")
+coache = spark.read.format("csv").option("header","True").option("inferSchema","True").load("/mnt/tokyoolymic/raw_data/coache.csv")
+entriesgender = spark.read.format("csv").option("header","True").option("inferSchema","True").load("/mnt/tokyoolymic/raw_data/entriesgender.csv")
+meda = spark.read.format("csv").option("header","True").option("inferSchema","True").load("/mnt/tokyoolymic/raw_data/meda.csv")
+team = spark.read.format("csv").option("header","True").option("inferSchema","True").load("/mnt/tokyoolymic/raw_data/team.csv")
+
+
+athlete.show()
+athlete.printSchema()
+coache.show()
+coache.printSchema()
+entriesgender.show()
+
+entriesgender.printSchema()
+entriesgender = entriesgender.withColumn("Female",col("Female").cast(IntegerType()))\
+    .withColumn("Male",col("Male").cast(IntegerType()))\
+    .withColumn("Total",col("Total").cast(IntegerType()))
+entriesgender.printSchema()
+meda.show()
+meda.printSchema()
+team.show()
+team.printSchema()
+
+#Calculate top Gold medals by each country
+
+top_gold_medal_countries = meda.orderBy("Gold", ascending = False).select("Team/NOC","Gold").show()
+
+
+#Calculate the average number of entries by gender for each discipline
+
+average_entries_by_gender = entriesgender.withColumn(
+    'Avg_Female', entriesgender['Female'] / entriesgender['Total']
+).withColumn(
+    'Avg_Male', entriesgender['Male'] / entriesgender['Total']
+)
+average_entries_by_gender.show()
+
+
+athlete.repartition(1).write.mode("overwrite").option("header",'true').csv("/mnt/tokyoolymic/transformed_data/athlete.csv")
+
+coaches.repartition(1).write.mode("overwrite").option("header","true").csv("/mnt/tokyoolymic/transformed_data/coaches.csv")
+entriesgender.repartition(1).write.mode("overwrite").option("header","true").csv("/mnt/tokyoolymic/transformed_data/entriesgender")
+medals.repartition(1).write.mode("overwrite").option("header","true").csv("/mnt/tokyoolymic/transformed_data/medals")
+teams.repartition(1).write.mode("overwrite").option("header","true").csv("/mnt/tokyoolymic/transformed_data/teams")
